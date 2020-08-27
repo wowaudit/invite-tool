@@ -1,9 +1,10 @@
-Wit = LibStub("AceAddon-3.0"):NewAddon("Wowaudit Invite Tool")
+Wit = LibStub("AceAddon-3.0"):NewAddon("Wowaudit Invite Tool", "AceTimer-3.0")
 local addon = Wit
 local AceGUI = LibStub("AceGUI-3.0")
 local inviteString
 local invitingPreview
 local uninvitingPreview
+local notInSetup
 local frame
 local frameShown
 
@@ -19,9 +20,8 @@ function addon:CreateFrame()
   else
     frame = AceGUI:Create("Frame")
     frame:SetTitle("Wowaudit Invite Tool")
-    frame:SetCallback("OnClose", function(widget) AceGUI:Release(widget); frameShown = false end)
     frame:SetLayout("Flow")
-    frame:SetWidth(345)
+    frame:SetWidth(445)
     frame:SetHeight(120)
     frame:EnableResize(false)
     frame.frame:SetFrameStrata("MEDIUM")
@@ -32,19 +32,55 @@ function addon:CreateFrame()
     local editbox = AceGUI:Create("EditBox")
     editbox:SetLabel("Paste invite string here:")
     editbox:SetWidth(200)
-    editbox:SetCallback("OnTextChanged", function(widget, event, text) inviteString = text; addon:Invite(true) end)
+    editbox:SetCallback("OnTextChanged", function(widget, event, text) inviteString = text end)
     editbox:DisableButton(true)
     frame:AddChild(editbox)
 
-    local button = AceGUI:Create("Button")
-    button:SetText("Send")
-    button:SetWidth(100)
-    button:SetCallback("OnClick", function() addon:Invite(false) end)
-    frame:AddChild(button)
+    local replaceButton = AceGUI:Create("Button")
+    replaceButton:SetText("Replace")
+    replaceButton:SetWidth(100)
+    replaceButton:SetCallback("OnClick", function() addon:Replace(false) end)
+    frame:AddChild(replaceButton)
+
+    local inviteButton = AceGUI:Create("Button")
+    inviteButton:SetText("Invite only")
+    inviteButton:SetWidth(100)
+    inviteButton:SetCallback("OnClick", function() addon:InviteOnly() end)
+    frame:AddChild(inviteButton)
+
+    inviteString = ""
+    notInSetup = ""
+    self.previewer = self:ScheduleRepeatingTimer("UpdatePreview", 0.1)
+
+    frame:SetCallback("OnClose", function(widget)
+      AceGUI:Release(widget)
+      frameShown = false
+      self:CancelTimer(self.previewer)
+    end)
   end
 end
 
-function addon:Invite(preview)
+function addon:UpdatePreview()
+  addon:Replace(true)
+  notInSetup = ""
+end
+
+function addon:Replace(preview)
+  addon:Uninvite(preview)
+  addon:Invite(preview)
+end
+
+function addon:InviteOnly()
+  notInSetup = ""
+  addon:Uninvite(true)
+  addon:Invite(false)
+
+  if (string.len(notInSetup) > 0) then
+    print("These players are not in the setup but haven't been removed: "..notInSetup:sub(1, -3))
+  end
+end
+
+function addon:Uninvite(preview)
   invitingPreview = 0
   uninvitingPreview = 0
   if not (string.len(inviteString) > 0) then
@@ -59,38 +95,44 @@ function addon:Invite(preview)
 	for j=rosterSize,1,-1 do
 		local nown = GetNumGroupMembers() or 0
 		if nown > 0 then
-      local name, rank = GetRaidRosterInfo(j)
+      local name, rank, subgroup = GetRaidRosterInfo(j)
 			if name and myname ~= name then
         local shouldRemain = false
         for inviteTarget in string.gmatch(inviteString, "([^;]+)") do
           if string.find(inviteTarget, name) then
-            invitingPreview = invitingPreview - 1
+            if preview then
+              invitingPreview = invitingPreview - 1
+            end
             shouldRemain = true
           end
         end
 
-
         if not shouldRemain then
-          uninvitingPreview = uninvitingPreview + 1
-          if not preview then UninviteUnit(name) end
+          if preview then
+            notInSetup = notInSetup..name..", "
+            uninvitingPreview = uninvitingPreview + 1
+          else
+            UninviteUnit(name)
+          end
         end
 			end
 		end
 	end
+end
 
+function addon:Invite(preview)
   -- Invite raid members in the string
   for inviteTarget in string.gmatch(inviteString, "([^;]+)") do
-    invitingPreview = invitingPreview + 1
-    if not preview then InviteUnit(inviteTarget) end
+    if preview then
+      invitingPreview = invitingPreview + 1
+    else
+      InviteUnit(inviteTarget)
+    end
   end
 
-  if not preview then
-    inviteString = ""
-    uninvitingPreview = 0
-    invitingPreview = 0
+  if preview then
+    frame:SetStatusText("Removing "..uninvitingPreview.." | Inviting "..invitingPreview)
   end
-
-  frame:SetStatusText("Removing "..uninvitingPreview.." | Inviting "..invitingPreview)
 end
 
 function split(input, separator)
