@@ -126,7 +126,7 @@ function addon:Invite(preview)
     if preview then
       invitingPreview = invitingPreview + 1
     else
-      InviteUnit(inviteTarget)
+      C_PartyInfo.InviteUnit(inviteTarget)
     end
   end
 
