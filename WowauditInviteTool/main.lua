@@ -66,13 +66,18 @@ function addon:UpdatePreview()
 end
 
 function addon:Replace(preview)
-  addon:Uninvite(preview)
+  if not preview then
+    C_PartyInfo.ConvertToRaid()
+  end
+
+  addon:Uninvite(preview, false)
   addon:Invite(preview)
 end
 
 function addon:InviteOnly()
+  C_PartyInfo.ConvertToRaid()
   notInSetup = ""
-  addon:Uninvite(true)
+  addon:Uninvite(false, true)
   addon:Invite(false)
 
   if (string.len(notInSetup) > 0) then
@@ -80,23 +85,35 @@ function addon:InviteOnly()
   end
 end
 
-function addon:Uninvite(preview)
+function addon:Uninvite(preview, moveOnly)
   invitingPreview = 0
   uninvitingPreview = 0
+  local moveToEnd = {}
+  local playersInGroup = {}
   if not (string.len(inviteString) > 0) then
     frame:SetStatusText("Removing "..uninvitingPreview.." | Inviting "..invitingPreview)
     return
   end
 
   -- Uninvite raid members not in the string
-  -- Shamelessly copied and adjusted from ExRT
   local rosterSize = GetNumGroupMembers() or 0
 	local myname = UnitName("player")
 	for j=rosterSize,1,-1 do
 		local nown = GetNumGroupMembers() or 0
 		if nown > 0 then
       local name, rank, subgroup = GetRaidRosterInfo(j)
-			if name and myname ~= name then
+      local playerInfo = {}
+
+      -- Store raid group status
+      if name then
+        playerInfo['name'] = name
+        playerInfo['subgroup'] = subgroup
+        playerInfo['index'] = j
+        playersInGroup[subgroup] = (playersInGroup[subgroup] or {})
+        table.insert(playersInGroup[subgroup], playerInfo)
+      end
+
+			if name then
         local shouldRemain = false
         for inviteTarget in string.gmatch(inviteString, "([^;]+)") do
           if string.find(inviteTarget, name) then
@@ -107,17 +124,82 @@ function addon:Uninvite(preview)
           end
         end
 
+        if moveOnly and not shouldRemain then
+          table.insert(moveToEnd, playerInfo)
+        end
+
         if not shouldRemain then
-          if preview then
+          if preview or moveOnly then
             notInSetup = notInSetup..name..", "
             uninvitingPreview = uninvitingPreview + 1
-          else
+          elseif name ~= myname then
             UninviteUnit(name)
           end
         end
 			end
 		end
 	end
+
+  if moveOnly and not preview then
+    -- First move unbenched players to the start
+    for group=8,1,-1 do
+      if playersInGroup[group] then
+        for k, player in pairs(playersInGroup[group]) do
+          local currentTargetGroup = 1
+          local searching = true
+
+          while searching do
+            if currentTargetGroup >= player.subgroup then
+              searching = false
+            elseif playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
+              currentTargetGroup = currentTargetGroup + 1
+            else
+              local onBench = false
+              for _,p in pairs(moveToEnd) do
+                if p.name == player.name then
+                  onBench = true
+                  searching = false
+                  break
+                end
+              end
+
+              if not onBench then
+                SetRaidSubgroup(player.index, currentTargetGroup)
+                player.subgroup = currentTargetGroup
+                playersInGroup[group][k] = nil
+                playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
+                table.insert(playersInGroup[currentTargetGroup], player)
+                searching = false
+              end
+            end
+          end
+        end
+      end
+    end
+
+    -- Then move benched players to the end
+    for k, player in pairs(moveToEnd) do
+      local searching = true
+      local currentTargetGroup = 8
+
+      while searching do
+        if playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
+          currentTargetGroup = currentTargetGroup - 1
+        else
+          SetRaidSubgroup(player.index, currentTargetGroup)
+          playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
+          table.insert(playersInGroup[currentTargetGroup], player)
+          searching = false
+        end
+      end
+    end
+  end
+end
+
+function addon:Tablelength(T)
+  local count = 0
+  for _ in pairs(T) do count = count + 1 end
+  return count
 end
 
 function addon:Invite(preview)
