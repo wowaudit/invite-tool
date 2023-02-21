@@ -97,11 +97,15 @@ function addon:Uninvite(preview, moveOnly)
 
   -- Uninvite raid members not in the string
   local rosterSize = GetNumGroupMembers() or 0
-	local myname = UnitName("player")
+	local myName, myRealm = UnitFullName("player")
 	for j=rosterSize,1,-1 do
 		local nown = GetNumGroupMembers() or 0
 		if nown > 0 then
       local name, rank, subgroup = GetRaidRosterInfo(j)
+      if not string.find(name, "-") then
+        name = name.."-"..myRealm
+      end
+
       local playerInfo = {}
 
       -- Store raid group status
@@ -116,7 +120,7 @@ function addon:Uninvite(preview, moveOnly)
 			if name then
         local shouldRemain = false
         for inviteTarget in string.gmatch(inviteString, "([^;]+)") do
-          if string.find(inviteTarget, name) then
+          if inviteTarget == name then
             if preview then
               invitingPreview = invitingPreview - 1
             end
@@ -132,7 +136,7 @@ function addon:Uninvite(preview, moveOnly)
           if preview or moveOnly then
             notInSetup = notInSetup..name..", "
             uninvitingPreview = uninvitingPreview + 1
-          elseif name ~= myname then
+          elseif name ~= myName then
             UninviteUnit(name)
           end
         end
