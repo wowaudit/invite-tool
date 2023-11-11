@@ -137,7 +137,13 @@ function addon:Uninvite(preview, moveOnly)
             notInSetup = notInSetup..name..", "
             uninvitingPreview = uninvitingPreview + 1
           elseif name ~= myName then
-            UninviteUnit(name)
+            local nameWithoutRealm, playerRealm = unpack(split(name, "-"))
+
+            if playerRealm == myRealm then
+              UninviteUnit(nameWithoutRealm)
+            else
+              UninviteUnit(name)
+            end
           end
         end
 			end
