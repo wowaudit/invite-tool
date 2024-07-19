@@ -8,6 +8,8 @@ local notInSetup
 local frame
 local frameShown
 
+local moveGroups
+
 SLASH_WOWAUDITINVITETOOL1, SLASH_WOWAUDITINVITETOOL2 = '/wit', '/wowaudit';
 
 function SlashCmdList.WOWAUDITINVITETOOL(msg, editBox)
@@ -21,32 +23,59 @@ function addon:CreateFrame()
     frame = AceGUI:Create("Frame")
     frame:SetTitle("Wowaudit Invite Tool")
     frame:SetLayout("Flow")
-    frame:SetWidth(445)
-    frame:SetHeight(120)
+    frame:SetWidth(400)
+    frame:SetHeight(180)
     frame:EnableResize(false)
     frame.frame:SetFrameStrata("MEDIUM")
     frame.frame:Raise()
     frame.content:SetFrameStrata("MEDIUM")
     frame.content:Raise()
 
-    local editbox = AceGUI:Create("EditBox")
+    local horizontalGroup = AceGUI:Create("SimpleGroup")
+    horizontalGroup:SetFullWidth(true)
+    horizontalGroup:SetLayout("Flow")
+
+    local editBoxGroup = AceGUI:Create("SimpleGroup")
+    editBoxGroup:SetWidth(240)
+    editBoxGroup:SetLayout("Fill")
+    
+    local editbox = AceGUI:Create("MultiLineEditBox")
     editbox:SetLabel("Paste invite string here:")
-    editbox:SetWidth(200)
-    editbox:SetCallback("OnTextChanged", function(widget, event, text) inviteString = text end)
+    editbox:SetFullWidth(true)
+    editbox:SetNumLines(15)
+    editbox:SetCallback("OnTextChanged", function(widget, event, text) inviteString = text:gsub("|", ";"); inviteString = inviteString:gsub("[;]+", "\n"); editbox:SetText(inviteString) end)
     editbox:DisableButton(true)
-    frame:AddChild(editbox)
+    editBoxGroup:AddChild(editbox)
+
+
+    local buttonGroup = AceGUI:Create("SimpleGroup")
+    buttonGroup:SetWidth(100)
+    buttonGroup:SetLayout("List")
 
     local replaceButton = AceGUI:Create("Button")
     replaceButton:SetText("Replace")
     replaceButton:SetWidth(100)
     replaceButton:SetCallback("OnClick", function() addon:Replace(false) end)
-    frame:AddChild(replaceButton)
+    buttonGroup:AddChild(replaceButton)
 
     local inviteButton = AceGUI:Create("Button")
     inviteButton:SetText("Invite only")
     inviteButton:SetWidth(100)
     inviteButton:SetCallback("OnClick", function() addon:InviteOnly() end)
-    frame:AddChild(inviteButton)
+    buttonGroup:AddChild(inviteButton)
+
+    local rearrangeGroup = AceGUI:Create("CheckBox")
+    rearrangeGroup:SetValue(false)
+    rearrangeGroup:SetType("checkbox")
+    rearrangeGroup:SetLabel("Rearrange Group")
+    rearrangeGroup:SetCallback("OnValueChanged", function() moveGroups = rearrangeGroup:GetValue() end)
+    buttonGroup:AddChild(rearrangeGroup)
+
+    horizontalGroup:AddChild(editBoxGroup)
+    horizontalGroup:AddChild(buttonGroup)
+
+    frame:AddChild(horizontalGroup)
+
 
     inviteString = ""
     notInSetup = ""
@@ -119,7 +148,7 @@ function addon:Uninvite(preview, moveOnly)
 
 			if name then
         local shouldRemain = false
-        for inviteTarget in string.gmatch(inviteString, "([^;]+)") do
+        for inviteTarget in string.gmatch(inviteString, "([^\n]+)") do
           if inviteTarget == name then
             if preview then
               invitingPreview = invitingPreview - 1
@@ -152,34 +181,36 @@ function addon:Uninvite(preview, moveOnly)
 
   if moveOnly and not preview then
     -- First move unbenched players to the start
-    for group=8,1,-1 do
-      if playersInGroup[group] then
-        for k, player in pairs(playersInGroup[group]) do
-          local currentTargetGroup = 1
-          local searching = true
+    if moveGroups then
+      for group=8,1,-1 do
+        if playersInGroup[group] then
+          for k, player in pairs(playersInGroup[group]) do
+            local currentTargetGroup = 1
+            local searching = true
 
-          while searching do
-            if currentTargetGroup >= player.subgroup then
-              searching = false
-            elseif playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
-              currentTargetGroup = currentTargetGroup + 1
-            else
-              local onBench = false
-              for _,p in pairs(moveToEnd) do
-                if p.name == player.name then
-                  onBench = true
-                  searching = false
-                  break
-                end
-              end
-
-              if not onBench then
-                SetRaidSubgroup(player.index, currentTargetGroup)
-                player.subgroup = currentTargetGroup
-                playersInGroup[group][k] = nil
-                playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
-                table.insert(playersInGroup[currentTargetGroup], player)
+            while searching do
+              if currentTargetGroup >= player.subgroup then
                 searching = false
+              elseif playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
+                currentTargetGroup = currentTargetGroup + 1
+              else
+                local onBench = false
+                for _,p in pairs(moveToEnd) do
+                  if p.name == player.name then
+                    onBench = true
+                    searching = false
+                    break
+                  end
+                end
+
+                if not onBench then
+                  SetRaidSubgroup(player.index, currentTargetGroup)
+                  player.subgroup = currentTargetGroup
+                  playersInGroup[group][k] = nil
+                  playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
+                  table.insert(playersInGroup[currentTargetGroup], player)
+                  searching = false
+                end
               end
             end
           end
@@ -187,19 +218,21 @@ function addon:Uninvite(preview, moveOnly)
       end
     end
 
-    -- Then move benched players to the end
-    for k, player in pairs(moveToEnd) do
-      local searching = true
-      local currentTargetGroup = 8
+    if moveGroups then
+      -- Then move benched players to the end
+      for k, player in pairs(moveToEnd) do
+        local searching = true
+        local currentTargetGroup = 8
 
-      while searching do
-        if playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
-          currentTargetGroup = currentTargetGroup - 1
-        else
-          SetRaidSubgroup(player.index, currentTargetGroup)
-          playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
-          table.insert(playersInGroup[currentTargetGroup], player)
-          searching = false
+        while searching do
+          if playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
+            currentTargetGroup = currentTargetGroup - 1
+          else
+            SetRaidSubgroup(player.index, currentTargetGroup)
+            playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
+            table.insert(playersInGroup[currentTargetGroup], player)
+            searching = false
+          end
         end
       end
     end
@@ -213,12 +246,26 @@ function addon:Tablelength(T)
 end
 
 function addon:Invite(preview)
+  local groupSize = GetNumGroupMembers()
+  local alreadyInGroup = {}
+  if groupSize ~= 0 then
+    for i=1,groupSize do
+      local name = GetRaidRosterInfo(i)
+      table.insert(alreadyInGroup, name)
+    end
+  end
+
+  local selfName, selfRealm = UnitFullName("player")
   -- Invite raid members in the string
-  for inviteTarget in string.gmatch(inviteString, "([^;]+)") do
+  for inviteTarget in string.gmatch(inviteString, "([^\n]+)") do
     if preview then
       invitingPreview = invitingPreview + 1
     else
-      C_PartyInfo.InviteUnit(inviteTarget)
+      if not tableContains(alreadyInGroup, inviteTarget) then
+        if inviteTarget ~= selfName .. "-" .. selfRealm then
+          C_PartyInfo.InviteUnit(inviteTarget)
+        end
+      end
     end
   end
 
@@ -236,4 +283,14 @@ function split(input, separator)
     table.insert(t, str)
   end
   return t
+end
+
+
+function tableContains(testTable, value)
+  for i = 1,#testTable do
+    if (testTable[i] == value) then
+      return true
+    end
+  end
+  return false
 end
