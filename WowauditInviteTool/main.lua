@@ -213,12 +213,26 @@ function addon:Tablelength(T)
 end
 
 function addon:Invite(preview)
+  local groupSize = GetNumGroupMembers()
+  local alreadyInGroup = {}
+  if groupSize ~= 0 then
+    for i=1,groupSize do
+      local name = GetRaidRosterInfo(i)
+      table.insert(alreadyInGroup, name)
+    end
+  end
+
+  local selfName, selfRealm = UnitFullName("player")
   -- Invite raid members in the string
   for inviteTarget in string.gmatch(inviteString, "([^;]+)") do
     if preview then
       invitingPreview = invitingPreview + 1
     else
-      C_PartyInfo.InviteUnit(inviteTarget)
+      if not tableContains(alreadyInGroup, inviteTarget) then
+        if inviteTarget ~= selfName .. "-" .. selfRealm then
+          C_PartyInfo.InviteUnit(inviteTarget)
+        end
+      end
     end
   end
 
