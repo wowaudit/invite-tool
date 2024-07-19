@@ -251,3 +251,13 @@ function split(input, separator)
   end
   return t
 end
+
+function tableContains(testTable, value)
+  for i = 1,#testTable do
+    if (testTable[i] == value) then
+      return true
+    end
+  end
+  return false
+end
+
