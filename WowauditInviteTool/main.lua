@@ -8,8 +8,6 @@ local notInSetup
 local frame
 local frameShown
 
-local moveGroups
-
 SLASH_WOWAUDITINVITETOOL1, SLASH_WOWAUDITINVITETOOL2 = '/wit', '/wowaudit';
 
 function SlashCmdList.WOWAUDITINVITETOOL(msg, editBox)
@@ -23,7 +21,7 @@ function addon:CreateFrame()
     frame = AceGUI:Create("Frame")
     frame:SetTitle("Wowaudit Invite Tool")
     frame:SetLayout("Flow")
-    frame:SetWidth(400)
+    frame:SetWidth(425)
     frame:SetHeight(180)
     frame:EnableResize(false)
     frame.frame:SetFrameStrata("MEDIUM")
@@ -38,7 +36,7 @@ function addon:CreateFrame()
     local editBoxGroup = AceGUI:Create("SimpleGroup")
     editBoxGroup:SetWidth(240)
     editBoxGroup:SetLayout("Fill")
-    
+
     local editbox = AceGUI:Create("MultiLineEditBox")
     editbox:SetLabel("Paste invite string here:")
     editbox:SetFullWidth(true)
@@ -49,27 +47,26 @@ function addon:CreateFrame()
 
 
     local buttonGroup = AceGUI:Create("SimpleGroup")
-    buttonGroup:SetWidth(100)
+    buttonGroup:SetWidth(150)
     buttonGroup:SetLayout("List")
 
     local replaceButton = AceGUI:Create("Button")
-    replaceButton:SetText("Replace")
-    replaceButton:SetWidth(100)
+    replaceButton:SetText("Invite and remove")
+    replaceButton:SetWidth(150)
     replaceButton:SetCallback("OnClick", function() addon:Replace(false) end)
     buttonGroup:AddChild(replaceButton)
 
+    local rearrangeButton = AceGUI:Create("Button")
+    rearrangeButton:SetText("Invite and rearrange")
+    rearrangeButton:SetWidth(150)
+    rearrangeButton:SetCallback("OnClick", function() addon:InviteAndRearrange() end)
+    buttonGroup:AddChild(rearrangeButton)
+
     local inviteButton = AceGUI:Create("Button")
     inviteButton:SetText("Invite only")
-    inviteButton:SetWidth(100)
+    inviteButton:SetWidth(150)
     inviteButton:SetCallback("OnClick", function() addon:InviteOnly() end)
     buttonGroup:AddChild(inviteButton)
-
-    local rearrangeGroup = AceGUI:Create("CheckBox")
-    rearrangeGroup:SetValue(false)
-    rearrangeGroup:SetType("checkbox")
-    rearrangeGroup:SetLabel("Rearrange Group")
-    rearrangeGroup:SetCallback("OnValueChanged", function() moveGroups = rearrangeGroup:GetValue() end)
-    buttonGroup:AddChild(rearrangeGroup)
 
     horizontalGroup:AddChild(editBoxGroup)
     horizontalGroup:AddChild(buttonGroup)
@@ -103,10 +100,15 @@ function addon:Replace(preview)
   addon:Invite(preview)
 end
 
+function addon:InviteAndRearrange()
+  C_PartyInfo.ConvertToRaid()
+  addon:Uninvite(false, true)
+  addon:InviteOnly()
+end
+
 function addon:InviteOnly()
   C_PartyInfo.ConvertToRaid()
   notInSetup = ""
-  addon:Uninvite(false, true)
   addon:Invite(false)
 
   if (string.len(notInSetup) > 0) then
@@ -181,36 +183,34 @@ function addon:Uninvite(preview, moveOnly)
 
   if moveOnly and not preview then
     -- First move unbenched players to the start
-    if moveGroups then
-      for group=8,1,-1 do
-        if playersInGroup[group] then
-          for k, player in pairs(playersInGroup[group]) do
-            local currentTargetGroup = 1
-            local searching = true
+    for group=8,1,-1 do
+      if playersInGroup[group] then
+        for k, player in pairs(playersInGroup[group]) do
+          local currentTargetGroup = 1
+          local searching = true
 
-            while searching do
-              if currentTargetGroup >= player.subgroup then
-                searching = false
-              elseif playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
-                currentTargetGroup = currentTargetGroup + 1
-              else
-                local onBench = false
-                for _,p in pairs(moveToEnd) do
-                  if p.name == player.name then
-                    onBench = true
-                    searching = false
-                    break
-                  end
-                end
-
-                if not onBench then
-                  SetRaidSubgroup(player.index, currentTargetGroup)
-                  player.subgroup = currentTargetGroup
-                  playersInGroup[group][k] = nil
-                  playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
-                  table.insert(playersInGroup[currentTargetGroup], player)
+          while searching do
+            if currentTargetGroup >= player.subgroup then
+              searching = false
+            elseif playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
+              currentTargetGroup = currentTargetGroup + 1
+            else
+              local onBench = false
+              for _,p in pairs(moveToEnd) do
+                if p.name == player.name then
+                  onBench = true
                   searching = false
+                  break
                 end
+              end
+
+              if not onBench then
+                SetRaidSubgroup(player.index, currentTargetGroup)
+                player.subgroup = currentTargetGroup
+                playersInGroup[group][k] = nil
+                playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
+                table.insert(playersInGroup[currentTargetGroup], player)
+                searching = false
               end
             end
           end
@@ -218,21 +218,19 @@ function addon:Uninvite(preview, moveOnly)
       end
     end
 
-    if moveGroups then
-      -- Then move benched players to the end
-      for k, player in pairs(moveToEnd) do
-        local searching = true
-        local currentTargetGroup = 8
+    -- Then move benched players to the end
+    for k, player in pairs(moveToEnd) do
+      local searching = true
+      local currentTargetGroup = 8
 
-        while searching do
-          if playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
-            currentTargetGroup = currentTargetGroup - 1
-          else
-            SetRaidSubgroup(player.index, currentTargetGroup)
-            playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
-            table.insert(playersInGroup[currentTargetGroup], player)
-            searching = false
-          end
+      while searching do
+        if playersInGroup[currentTargetGroup] and (addon:Tablelength(playersInGroup[currentTargetGroup]) > 4) then
+          currentTargetGroup = currentTargetGroup - 1
+        else
+          SetRaidSubgroup(player.index, currentTargetGroup)
+          playersInGroup[currentTargetGroup] = (playersInGroup[currentTargetGroup] or {})
+          table.insert(playersInGroup[currentTargetGroup], player)
+          searching = false
         end
       end
     end
