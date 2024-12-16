@@ -3,7 +3,7 @@ name: Release addon
 on:
   push:
     branches:
-      - main
+      - master
     tags:
       - "**"
 
