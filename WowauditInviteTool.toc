@@ -1,4 +1,6 @@
 ## Interface: 110007
+## Interface-Classic: 11502
+## Interface-Cata: 40400
 
 ## Title: Wowaudit Invite Tool
 ## Description: Automatically invite and uninvite raid members based on the Wowaudit Raid Planner
