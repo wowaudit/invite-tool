@@ -1,11 +1,11 @@
-## Interface: 100207, 110000, 110002
+## Interface: 40400
 
 ## Title: Wowaudit Invite Tool
 ## Description: Automatically invite and uninvite raid members based on the Wowaudit Raid Planner
 ## Notes: Automatically invite and uninvite raid members based on the Wowaudit Raid Planner
 ## Author: Emiel van Lankveld
 ## Version: 0.1.12
-## X-Embeds: Ace3, LibDataBroker-1.1, LibDBIcon-1.0, LibStrataFix
+## X-Embeds: Ace3, LibDataBroker-1.1, LibDBIcon-1.0
 ## OptionalDependencies: Ace3, LibDataBroker-1.1, LibDBIcon-1.0
 ## IconTexture: Interface\AddOns\WowauditInviteTool\Media\logo
 

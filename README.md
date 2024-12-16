@@ -1,4 +1,3 @@
-## Deploying
+## WowauditInviteTool
 
-1. ```zip -r WowauditInviteTool.zip WowauditInviteTool -x "*.DS_Store"```
-2. Upload to Curseforge
+- https://www.curseforge.com/wow/addons/wowaudit-invite-tool
